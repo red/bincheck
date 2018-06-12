@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>Binary Check</title>
+	<style>
+		html,
+		body {
+			margin: 0;
+			height: 100%;
+			display: grid;
+			background-color: #444;
+		}
+
+		#progress {
+			width: 0;
+			height: 100%;
+			position: fixed;
+			background-color: #333;
+		}
+
+		#status {
+			font-size: 100px;
+			margin: 0;
+		}
+
+		#made {
+			position: fixed;
+			left: -20px;
+			bottom: 0;
+			height: 30px;
+			width: 100%;
+			color: white;
+			text-align: right;
+		}
+
+		#made,
+		code {
+			z-index: 1;
+			font-family: monospace;
+		}
+
+		code {
+			margin: auto;
+			text-align: center;
+		}
+
+		p>strong {
+			font-size: 20px
+		}
+
+		a {
+			color: red;
+			font-weight: 700;
+			text-decoration: none;
+		}
+
+		a:hover {
+			text-decoration: underline;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="progress"></div>
+	<code>
+	<p id="status">DROP APP HERE</p>
+	<p id="app"></p>
+	</code>
+	<div id="made">[made with &#10084; by
+		<a href="https://www.red-lang.org/">Red language</a>]</div>
+</body>
+<script async src="orgs.js"></script>
+<script>
+	var run = false
+</script>
+<script>
+
+	run = true
+
+
+	var utils = {
+		platforms: {w: "Windows", m: "macOS", l: "Linux"},
+
+		sha256: async function(b) {
+			const hb = await crypto.subtle.digest('SHA-256', b)
+			const ha = Array.from(new Uint8Array(hb))
+			return ha.map(b => ('00' + b.toString(16)).slice(-2)).join('')
+		},
+
+		getDir: function(entry, path) {
+			return new Promise((resolve) => {
+				entry.getDirectory(path, {}, resolve);
+			});
+		},
+
+		readFile: function(item, direct) {
+			return new Promise((resolve) => {
+				const reader = new FileReader()
+				reader.onload = () => resolve(reader.result)
+				if (direct) {
+					reader.readAsArrayBuffer(item)
+				} else {
+					item.file(file => { reader.readAsArrayBuffer(file) })
+				}
+			})
+		},
+
+		readDir: async function(item, tree, files) {
+			return new Promise((resolve) => {
+				item.createReader().readEntries(
+					async function(entries) {
+						tree[item.name] = {}
+						const path = item.fullPath.split('/')
+						const items = []
+						entries.map(entry => { items.push(entry.name) })
+						if (
+							path.slice(-2)[0] === 'Frameworks' &&
+							path.slice(-1)[0].match(/\.framework$/g) &&
+							items.indexOf('Versions') >= 0
+						) {
+							// Firefox: don't scan aliases on macOS
+							await utils.dive(
+								entries[items.indexOf('Versions')],
+								tree[item.name],
+								files
+							)
+						} else {
+							if (
+								path.slice(-3)[0] === 'Frameworks' &&
+								path.slice(-2)[0].match(/\.framework$/g) &&
+								path.slice(-1)[0] === 'Versions' &&
+								items.indexOf('Current') >= 0
+							) {
+								// Firefox: don't scan aliases on macOS
+								entries.pop(items.indexOf('Current'))
+							}
+							for (let entry of entries) {
+								await utils.dive(entry, tree[item.name], files)
+							}
+						}
+						resolve()
+					}
+				)
+			})
+		},
+
+		dive: async function(item, tree, files) {
+			if (item.isDirectory) {
+				await utils.readDir(item, tree, files)
+			} else {
+				tree[item.name] = 0
+				console.log(item.fullPath)
+				// Safari does not list dot files,
+				// filter out for other browsers as well
+				if (!item.name.match(/^\./)) {
+					files.push(item)
+				}
+
+			}
+		}
+	}
+
+	var html = {
+		body: document.body,
+		progress: document.getElementById('progress'),
+		status: document.getElementById('status'),
+		app: document.getElementById('app'),
+		a: document.querySelector('a'),
+		reset: function() {
+			html.body.style['background-color'] = '#444'
+			html.progress.style.width = 0
+			html.status.innerHTML = 'DROP APP HERE'
+			html.app.innerHTML = ''
+			html.a.style.color = 'red'
+		},
+		ok: function(data) {
+			html.progress.style.width = 0
+			html.body.style['background-color'] = 'green'
+			html.status.innerHTML = 'OK'
+			html.app.innerHTML = `<strong><a href="${data.app.commit ? data.app.url + '/commit/' + data.app.commit : data.app.url}">${data.app.name}</a> ${data.app.version}</strong> for <strong>${data.app.platform}</strong> by <strong><a href="${data.org.url}">${data.org.name}</a></strong>`
+		},
+		nok: function() {
+			html.progress.style.width = 0
+			html.body.style['background-color'] = 'red'
+			html.a.style.color = 'black'
+			html.status.innerHTML = 'DANGER'
+			html.app.innerHTML = `<strong>We couldn't identify this App, make sure you download from a trusted source.</strong>`
+		},
+		drop: {
+			stop: function(e) {
+				e.stopPropagation()
+				e.preventDefault()
+			},
+			enter: function(e) {
+				html.drop.stop(e)
+				html.reset()
+				html.body.style['background-color'] = '#666'
+			},
+			leave: function(e) {
+				html.drop.stop(e)
+				html.body.style['background-color'] = '#444'
+			},
+			start: function() {
+				html.body.addEventListener('dragenter', html.drop.enter, true)
+				html.body.addEventListener('dragleave', html.drop.leave, true)
+				html.body.addEventListener('dragover', html.drop.enter, true)
+				html.body.addEventListener('drop', html.drop.drop, true)
+			},
+			end: function() {
+				html.body.removeEventListener('dragenter', html.drop.enter)
+				html.body.removeEventListener('dragleave', html.drop.leave)
+				html.body.removeEventListener('dragover', html.drop.enter)
+				html.body.removeEventListener('drop', html.drop.drop)
+			},
+			drop: async function(e) {
+				const start = new Date()
+				html.drop.stop(e)
+				html.drop.end()
+				html.reset()
+				let itemIsDir, safariSucks, item
+				if (e.dataTransfer.items) {
+					item = e.dataTransfer.items[0].webkitGetAsEntry()
+					itemIsDir = item.isDirectory
+					safariSucks = item.name.match(/\.app\.zip$/g) && itemIsDir
+				}
+
+				let hash
+
+				if (itemIsDir) {
+					const tree = {}
+					const files = []
+					const hashes = []
+					await utils.dive(safariSucks ? await utils.getDir(item, '/' + item.name.replace(/\.zip$/, '')) : item, tree, files)
+					const total = files.length
+					let counter = 0
+					// console.log(tree)
+					// console.log(files)
+					for (let file of files) {
+						hashes.push(await utils.sha256(await utils.readFile(file)))
+						counter += 1
+						html.status.innerHTML = Math.floor(100 / total * counter) + '%'
+						html.progress.style.width = Math.floor(html.body.clientWidth / total * counter) + 'px'
+					}
+					// console.log(hashes)
+					hash = await utils.sha256(new TextEncoder('utf-8').encode(hashes.join('')))
+				} else {
+					hash = await utils.sha256(await utils.readFile(e.dataTransfer.files[0], true))
+				}
+
+				// const found = whitelist[hash]
+				const whitelist = (await (await fetch('whitelist/' + hash.charAt(0) + '.txt')).text())
+				const found = whitelist.match(new RegExp (hash + '\/(.*)\n','i'))
+				if (found) {
+					const d = found[1].split('/')
+					const data = {
+						org: {
+							name: orgs[d[0]].name,
+							url: orgs[d[0]].url
+						},
+						app: {
+							name: orgs[d[0]].apps[d[1]].name,
+							url: orgs[d[0]].apps[d[1]].url,
+							platform: utils.platforms[d[2]],
+							version: d[3],
+							commit: d[4]
+						}
+					}
+					html.ok(data)
+					console.log(data)
+				} else {
+					html.nok()
+				}
+				console.log('sha256: ' + hash)
+				console.log('Done in ' + (new Date() - start) / 1000 + ' seconds')
+				html.drop.start()
+			}
+		}
+	}
+
+</script>
+<script>
+	run ? html.drop.start() : document.getElementById('status').innerHTML = 'Use a more modern browser'
+</script>
+
+</html>
