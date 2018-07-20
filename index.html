@@ -82,12 +82,24 @@
 
 
 	var utils = {
-		platforms: {w: "Windows", m: "macOS", l: "Linux"},
+		platforms: { w: "Windows", m: "macOS", l: "Linux" },
 
 		sha256: async function(b) {
 			const hb = await crypto.subtle.digest('SHA-256', b)
 			const ha = Array.from(new Uint8Array(hb))
 			return ha.map(b => ('00' + b.toString(16)).slice(-2)).join('')
+		},
+
+		sortObject: function(items, key) {
+			return items.sort((a, b) => {
+				if (a[key] < b[key]) {
+					return -1
+				}
+				if (a[key] > b[key]) {
+					return 1
+				}
+				return 0
+			})
 		},
 
 		getDir: function(entry, path) {
@@ -115,7 +127,8 @@
 						tree[item.name] = {}
 						const path = item.fullPath.split('/')
 						const items = []
-						entries.map(entry => { items.push(entry.name) })
+						// sort directory entries as APFS doesn't!
+						utils.sortObject(entries, 'name').map(entry => { items.push(entry.name) })
 						if (
 							path.slice(-2)[0] === 'Frameworks' &&
 							path.slice(-1)[0].match(/\.framework$/g) &&
@@ -252,7 +265,7 @@
 
 				// const found = whitelist[hash]
 				const whitelist = (await (await fetch('whitelist/' + hash.charAt(0) + '.txt')).text())
-				const found = whitelist.match(new RegExp (hash + '\/(.*)\n','i'))
+				const found = whitelist.match(new RegExp(hash + '\/(.*)\n', 'i'))
 				if (found) {
 					const d = found[1].split('/')
 					const data = {
