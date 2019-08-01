@@ -6,24 +6,32 @@
 	<meta name="viewport" content="width=device-width,initial-scale=1">
 	<title>Binary Check</title>
 	<style>
-		html,
-		body {
+		html, body, p {
 			margin: 0;
+		}
+
+		html, body, #root, #progress {
 			height: 100%;
-			display: grid;
+		}
+
+		body {
 			background-color: #444;
+		}
+
+		#root {
+			display: flex;
+			justify-content: center;
+			align-items: center;
 		}
 
 		#progress {
 			width: 0;
-			height: 100%;
 			position: fixed;
 			background-color: #333;
 		}
 
 		#status {
 			font-size: 100px;
-			margin: 0;
 		}
 
 		#made {
@@ -43,7 +51,6 @@
 		}
 
 		code {
-			margin: auto;
 			text-align: center;
 		}
 
@@ -65,12 +72,15 @@
 
 <body>
 	<div id="progress"></div>
-	<code>
-	<p id="status">DROP APP HERE</p>
-	<p id="app"></p>
-	</code>
+	<div id="root">
+		<code>
+			<p id="status">DROP APP HERE</p>
+			<p id="app"></p>
+		</code>
+	</div>
 	<div id="made">[made with &#10084; by
-		<a href="https://www.red-lang.org/">Red language</a>]</div>
+		<a href="https://www.red-lang.org/">Red language</a>]
+	</div>
 </body>
 <script async src="orgs.js"></script>
 <script>
